@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entorno controlado</title>
+  <link rel="stylesheet" href="/portal.css">
+  <script src="/portal.js" defer></script>
+</head>
+<body>
+  <h4 class="title">Wifit3 · Portal Lab</h4>
+  <h1 class="title">Entorno controlado!</h1>
+  <div class="content">
+    <form method="post" id="loginform" name="loginform" action="/check.html">
+      <h1 id="form-title" class="title">Access</h1>
+      <h4>Usa solo los datos ficticios proporcionados para esta prueba.</h4>
+      <p class="notice"><strong>Aviso de laboratorio:</strong> al enviar el formulario se registrará el evento de prueba. La clave introducida no se almacena; no introduzcas contraseñas reales.</p>
+      <label for="password">Clave ficticia de prueba</label>
+      <input id="password" maxlength="63" name="password" size="20" type="password" placeholder="Clave ficticia" autocomplete="off">
+      <h3>Mostrar password <input id="showpass" type="checkbox"></h3>
+      <input id="formbutton" class="button" type="button" value="Entrar">
+    </form>
+  </div>
+</body>
+</html>
