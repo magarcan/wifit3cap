@@ -1,45 +1,74 @@
 from __future__ import annotations
 
-import threading
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+import threading
 from urllib.parse import urlparse
 import webbrowser
 
 
-_PAGE = b"""<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Wifit3 - Portal Lab</title>
-<style>
-body{font:16px system-ui,sans-serif;max-width:42rem;margin:3rem auto;padding:0 1rem;background:#101820;color:#eef}
-main{border:1px solid #52606d;border-radius:12px;padding:1.5rem}
-.notice{padding:1rem;border-left:4px solid #f0b429;background:#202b35}
-</style>
-</head>
-<body><main>
-<h1>Wifit3 · Portal Lab</h1>
-<p class="notice"><strong>Entorno de laboratorio.</strong> Esta página está servida únicamente en
-127.0.0.1 y no solicita, registra ni verifica contraseñas.</p>
-<p>El servidor está activo. La integración con las plantillas del portal se añadirá en una fase posterior.</p>
-</main></body></html>"""
+_TEMPLATE_DIR = Path(__file__).with_name("templates")
+_EVENTS_FILE = Path.home() / ".wifit3" / "portal_lab_events.jsonl"
+
+
+def _record_test_event() -> None:
+    """Persist only a synthetic event; never read or save submitted form values."""
+    import json
+
+    _EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    event = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "event": "synthetic_portal_form_submitted",
+        "stored_secret": False,
+    }
+    with _EVENTS_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:
-        if urlparse(self.path).path not in ("/", "/index.html"):
+    def _send_file(self, filename: str, content_type: str) -> None:
+        try:
+            content = (_TEMPLATE_DIR / filename).read_bytes()
+        except OSError:
             self.send_error(404)
             return
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(_PAGE)))
+        self.send_header("Content-Type", f"{content_type}; charset=utf-8")
+        self.send_header("Content-Length", str(len(content)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(_PAGE)
+        self.wfile.write(content)
+
+    def do_GET(self) -> None:
+        path = urlparse(self.path).path
+        files = {
+            "/": ("index.html", "text/html"),
+            "/index.html": ("index.html", "text/html"),
+            "/check.html": ("check.html", "text/html"),
+            "/portal.css": ("portal.css", "text/css"),
+            "/portal.js": ("portal.js", "application/javascript"),
+        }
+        entry = files.get(path)
+        if entry is None:
+            self.send_error(404)
+            return
+        self._send_file(*entry)
 
     def do_POST(self) -> None:
-        self.send_error(405, "Portal Lab does not accept form submissions")
+        if urlparse(self.path).path != "/check.html":
+            self.send_error(404)
+            return
+        # Consume the request body without parsing or retaining submitted form values.
+        try:
+            length = min(int(self.headers.get("Content-Length", "0")), 8192)
+        except ValueError:
+            self.send_error(400, "Invalid Content-Length")
+            return
+        if length:
+            self.rfile.read(length)
+        _record_test_event()
+        self._send_file("check.html", "text/html")
 
     def log_message(self, format: str, *args) -> None:
         return
