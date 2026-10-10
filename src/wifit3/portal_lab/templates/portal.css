@@ -1,0 +1,22 @@
+body * {
+  box-sizing: border-box;
+  font-family: Helvetica, Arial, sans-serif;
+}
+body { margin: 1.5rem; background: #f4f6f8; color: #202830; }
+.button {
+  color: #ffffff; background-color: #5cb85c; border: 0;
+  border-radius: 5px; cursor: pointer; min-height: 36px; padding: 0 1rem;
+}
+.content {
+  width: 100%; max-width: 680px; background-color: #4acbd6;
+  padding: 20px; margin: 15px auto 0; border-radius: 15px; color: #ffffff;
+}
+.title { text-align: center; margin-bottom: 15px; }
+#password {
+  width: 100%; margin: 0.4rem 0 0.6rem; border-radius: 5px;
+  border: 1px solid #c8d0d8; height: 35px; padding: 0 0.6rem;
+}
+#password:hover, #password:focus { box-shadow: 0 0 10px #69f0ae; }
+#showpass { vertical-align: middle; }
+.notice { background: rgba(0,0,0,.12); padding: .8rem; border-radius: 6px; }
+@media (min-width: 1000px) { .content { width: 50%; } }
