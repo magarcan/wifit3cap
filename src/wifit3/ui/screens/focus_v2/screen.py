@@ -35,6 +35,7 @@ from textual.widgets import Button, Footer, Header, Static
 
 from wifit3.campaigns import treelog
 from wifit3.campaigns.campaign import Campaign
+from wifit3.portal_lab import PortalLabServer
 from wifit3.campaigns.pmkid import PmkidHarvestAttack
 from wifit3.campaigns.wep import WepCampaign
 from wifit3.campaigns.eviltwin import EvilTwinCampaign, EvilTwinInput
@@ -89,6 +90,7 @@ _PAD_RATE = 0.4
 _PBC_RETRY_COOLDOWN_S = 3.0
 
 _ATTACK_BUTTONS = [
+    ("btn-portal-lab", "Portal Lab"),
     ("btn-decloak", "Decloak"),
     ("btn-gen-ivs", "ARP Replay"), ("btn-chop", "ChopChop"), ("btn-deauth", "AutoDeauth"),
     ("btn-pmkid", "PMKID"), ("btn-wps-pin", "WPS PIN"), ("btn-eviltwin", "EvilTwin"),
@@ -106,6 +108,8 @@ _BUTTON_TIPS = {
     "WPS PIN": "PIN attacks: PixieDust, default vendor PINs, then brute-force",
     "EvilTwin": "Punt clients onto a WPA2 twin to capture a crackable handshake",
     "Stop EvilTwin": "Tear down the twin and return clients to the AP",
+    "Portal Lab": "Start a local-only captive-portal lab",
+    "Stop Portal": "Stop the local captive-portal lab",
 }
 
 
@@ -222,6 +226,7 @@ class FocusViewV2(Screen):
         self._pbc_retry_after = 0.0   # monotonic time before which we won't re-arm a PBC retry
         self._probe_task: Optional[asyncio.Task] = None
         self._prev_stats = None
+        self._portal_lab = PortalLabServer()
         self._campaign_toggles = {
             "wep": self._toggle_generate_ivs, "pmkid": self._toggle_pmkid,
             "wps": self._toggle_wps_pin, "chop": self._toggle_chop,
@@ -381,6 +386,12 @@ class FocusViewV2(Screen):
         ap = getattr(self.app, "target_ap", None)
         if ap is None:
             return
+        portal_btn = self.query_one("#btn-portal-lab", Button)
+        portal_btn.display = True
+        portal_btn.label = "Stop Portal" if self._portal_lab.running else "Portal Lab"
+        portal_btn.variant = "error" if self._portal_lab.running else "primary"
+        portal_btn.disabled = False
+        portal_btn.tooltip = _BUTTON_TIPS.get(str(portal_btn.label))
         active = Campaign.active
         probing = self._is_probing()
         for cls in fm.BUTTON_CAMPAIGNS:
@@ -421,6 +432,22 @@ class FocusViewV2(Screen):
             stop_pbc.label = "Stopping…" if stopping else "Stop PBC"
         else:
             stop_pbc.display = False
+
+    def _toggle_portal_lab(self) -> None:
+        if self._portal_lab.running:
+            self._portal_lab.stop()
+            self._log("[yellow]Portal Lab stopped[/yellow]")
+            self.app.notify("Portal Lab stopped")
+        else:
+            try:
+                url = self._portal_lab.start()
+            except OSError as exc:
+                self._log(f"[red]Portal Lab failed to start: {escape(str(exc))}[/red]")
+                self.app.notify("Could not start Portal Lab", severity="error")
+            else:
+                self._log(f"[green]Portal Lab listening at {escape(url)}[/green]")
+                self.app.notify(f"Portal Lab: {url}")
+        self.refresh_buttons()
 
     # ----- target (re)acquisition --------------------------------------------
 
@@ -699,6 +726,8 @@ class FocusViewV2(Screen):
         bid = event.button.id or ""
         if bid == "back":
             await self.action_go_back()
+        elif bid == "btn-portal-lab":
+            self._toggle_portal_lab()
         elif bid == "deauth-all":
             self.run_worker(self._run_deauth_broadcast(), exclusive=True)
         elif bid == "btn-deauth":
@@ -1262,6 +1291,7 @@ class FocusViewV2(Screen):
     # ----- navigation --------------------------------------------------------
 
     async def action_go_back(self) -> None:
+        self._portal_lab.stop()
         # Tear down any running attack: Scanner doesn't own the AP's channel, and a forged daemon would keep injecting.
         self._controls.stop()
         self._stop_probe()
